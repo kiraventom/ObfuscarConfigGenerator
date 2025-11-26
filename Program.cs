@@ -129,7 +129,7 @@ public class ConfigBuilder
     public ConfigBuilder SetSearchPath(string searchPath)
     {
         var el = new XElement("AssemblySearchPath");
-        el.Attribute("path").Value = searchPath;
+        el.Add(new XAttribute("path", searchPath));
         _root.Add(el);
 
         return this;
@@ -151,8 +151,8 @@ public class ConfigBuilder
     public ConfigBuilder AddVar(string name, object value)
     {
         var el = new XElement("Var");
-        el.Attribute("name").Value = name;
-        el.Attribute("value").Value = value.ToString();
+        el.Add(new XAttribute("name", name));
+        el.Add(new XAttribute("value", value));
         _root.Add(el);
         return this;
     }
@@ -160,7 +160,7 @@ public class ConfigBuilder
     private ConfigBuilder AddModule(string file)
     {
         var el = new XElement("Module");
-        el.Attribute("file").Value = $"$(InPath)\\{file}";
+        el.Add(new XAttribute("file", $"$(InPath)\\{file}"));
         _root.Add(el);
         return this;
     }
