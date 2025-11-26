@@ -2,16 +2,16 @@
 
 public class Args
 {
-    public string SolutionFile { get; }
+    public string ExecProjectFile { get; }
     public string InputFolder { get; }
     public string OutputFolder { get; }
     public IReadOnlyCollection<string> IgnoredModules { get; }
     public bool ObfuscateWpf { get; }
     public bool ObfuscatePlugins { get; }
 
-    public Args(string solutionFile, string inputFolder, string outputFolder, IReadOnlyCollection<string> ignoredModules, bool wpf, bool plugins)
+    public Args(string execProjectFile, string inputFolder, string outputFolder, IReadOnlyCollection<string> ignoredModules, bool wpf, bool plugins)
     {
-        SolutionFile = solutionFile;
+        ExecProjectFile = execProjectFile;
         InputFolder = inputFolder;
         OutputFolder = outputFolder;
         IgnoredModules = ignoredModules;
@@ -29,7 +29,7 @@ internal class Program
 
     private static Args ParseArgs(string[] args)
     {
-        const string SOLUTION_ARG = "--solution";
+        const string EXEC_PROJECT_ARG = "--project";
         const string INPUT_ARG = "--input";
         const string OUTPUT_ARG = "--output";
         const string IGNORE_ARG = "--ignore";
@@ -45,7 +45,7 @@ internal class Program
         {
             Console.WriteLine($@"
 Required arguments:
-    {SOLUTION_ARG}, {ArgToAlias(SOLUTION_ARG)}: Path to .sln file.
+    {EXEC_PROJECT_ARG}, {ArgToAlias(EXEC_PROJECT_ARG)}: Path to executable .csproj file.
 
 Optional arguments:
     {INPUT_ARG}, {ArgToAlias(INPUT_ARG)}: Obfuscar input directory. 
@@ -71,7 +71,7 @@ Optional arguments:
             return null;
         }
 
-        var solutionFile = ParseArg(args, SOLUTION_ARG);
+        var execProjectFile = ParseArg(args, EXEC_PROJECT_ARG);
         var inputDir = ParseArg(args, INPUT_ARG, defaultValue: INPUT_ARG_DEFAULT);
         var outputDir = ParseArg(args, INPUT_ARG, defaultValue: Path.Combine(inputDir, OUTPUT_ARG_DEFAULT));
         var ignoreStr = ParseArg(args, IGNORE_ARG, defaultValue: string.Empty, hasAlias: false);
@@ -82,7 +82,7 @@ Optional arguments:
         var wpf = bool.Parse(wpfStr);
         var plugin = bool.Parse(pluginStr);
 
-        return new Args(solutionFile, inputDir, outputDir, ignore, wpf, plugin);
+        return new Args(execProjectFile, inputDir, outputDir, ignore, wpf, plugin);
     }
 
     private static string ParseArg(string[] args, string arg, string defaultValue = null, bool hasAlias = true)
@@ -131,10 +131,10 @@ Optional arguments:
             return;
         }
 
-        var solutionPath = args.SolutionFile;
-        if (!File.Exists(solutionPath))
+        var execProjectPath = args.ExecProjectFile;
+        if (!File.Exists(execProjectPath))
         {
-            Console.Error.WriteLine($"File {solutionPath} does not exist");
+            Console.Error.WriteLine($"File {execProjectPath} does not exist");
             return;
         }
 
@@ -145,8 +145,8 @@ Optional arguments:
             .AddVar("HidePublicApi", true)
             .AddVar("SkipGenerated", true);
 
-        SolutionParser solutionParser = new();
-        var projectPaths = solutionParser.GetProjectPaths(solutionPath);
+        ProjectTreeParser projectTreeParser = new();
+        var projectPaths = projectTreeParser.GetProjects(execProjectPath);
 
         ProjectParser projectParser = new();
         var projects = projectPaths
@@ -185,36 +185,32 @@ public class ProjectParser
     }
 }
 
-public class SolutionParser
+public class ProjectTreeParser
 {
-    private const string CS_PROJECT_GUID =  @"FAE04EC0-301F-11D3-BF4B-00C04F79EFBC";
-    private const string FOLDER_GUID =      @"2150E333-8FFC-42A3-9474-1A3956D46DE8";
-    private const string CPP_PROJECT_GUID = @"8BC9CEB8-8B4A011D0-8D11-00A0C91BC942";
-
-    public IReadOnlyCollection<string> GetProjectPaths(string solutionFileName)
+    public IReadOnlyCollection<string> GetProjects(string executableProjectFile)
     {
-        var list = new List<string>();
+        var hashset = new HashSet<string>();
+        ParseProjectAndRefs(executableProjectFile, hashset);
+        return hashset;
+    }
 
-        var solutionDir = Path.GetDirectoryName(solutionFileName);
+    private void ParseProjectAndRefs(string path, HashSet<string> hashset)
+    {
+        var fileInfo = new FileInfo(path);
+        if (fileInfo.Extension != ".csproj")
+            return;
 
-        using var fs = File.OpenText(solutionFileName);
-        while (fs.ReadLine() is {} line)
+        hashset.Add(fileInfo.FullName);
+
+        var doc = XDocument.Load(path);
+        var refs = doc.Elements("ProjectReference");
+        foreach (var @ref in refs)
         {
-            if (!line.Contains(CS_PROJECT_GUID))
-                continue;
-
-            var start = line.IndexOf(',') + 3;
-            var end = line.IndexOf(',', start) - 1;
-            
-            if (start == -1 || end == -1)
-                Console.Error.WriteLine($"Failed to parse C# project: '{line}'");
-            
-            var projectPath = line[start..end];
-            var absProjectPath = Path.Combine(solutionDir, projectPath);
-            list.Add(absProjectPath);
+            var refPath = @ref.Attribute("Include").Value;
+            var absRefPath = Path.Combine(fileInfo.FullName, refPath);
+            absRefPath = Path.GetFullPath(absRefPath); // normalize
+            ParseProjectAndRefs(absRefPath, hashset);
         }
-
-        return list;
     }
 }
 
