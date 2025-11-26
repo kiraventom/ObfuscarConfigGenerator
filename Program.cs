@@ -106,7 +106,7 @@ Optional arguments:
         }
 
         var argIndex = prefixIndex + 1;
-        if (args.Length >= argIndex)
+        if (args.Length <= argIndex)
         {
             throw new NotSupportedException($"Argument \"{(isAlias ? alias : arg)}\" should have value. Use {HELP_ARG} for help.");
         }
