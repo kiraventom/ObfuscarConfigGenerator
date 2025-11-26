@@ -37,7 +37,7 @@ internal class Program
         const string PLUGIN_ARG = "--plugin";
 
         const string INPUT_ARG_DEFAULT = "./";
-        const string OUTPUT_ARG_DEFAULT = "/Obfuscated/";
+        const string OUTPUT_ARG_DEFAULT = "Obfuscated/";
         const string WPF_ARG_DEFAULT = "false";
         const string PLUGIN_ARG_DEFAULT = "false";
 
@@ -52,7 +52,7 @@ Optional arguments:
         Default value: ""{INPUT_ARG_DEFAULT}"".
 
     {OUTPUT_ARG}, {ArgToAlias(OUTPUT_ARG)}: Obfuscar output directory. 
-        Default value: ""<input>{OUTPUT_ARG_DEFAULT}"".
+        Default value: ""<input>/{OUTPUT_ARG_DEFAULT}"".
 
     {IGNORE_ARG}: Comma-separated list of modules to ignore.
         E.g., ""{IGNORE_ARG} Foo,Bar,Baz"" will exclude Foo.dll, Bar.dll and Baz.dll from list of modules.
