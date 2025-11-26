@@ -121,6 +121,8 @@ Optional arguments:
         try
         {
             args = ParseArgs(a);
+            if (args is null)
+                return;
         }
         catch (Exception e)
         {
