@@ -177,7 +177,7 @@ public class ProjectParser
     public Project Parse(string pathToCsproj)
     {
         var doc = XDocument.Load(pathToCsproj);
-        var useWpfEl = doc.Element("UseWPF");
+        var useWpfEl = doc.Descendants("UseWPF").FirstOrDefault();
         var useWpf = useWpfEl is null ? false : bool.Parse(useWpfEl.Value);
         var name = Path.GetFileNameWithoutExtension(pathToCsproj);
         var isPlugin = name.Contains("Plugin");
@@ -203,7 +203,7 @@ public class ProjectTreeParser
         hashset.Add(fileInfo.FullName);
 
         var doc = XDocument.Load(path);
-        var refs = doc.Elements("ProjectReference");
+        var refs = doc.Descendants("ProjectReference");
         foreach (var @ref in refs)
         {
             var refPath = @ref.Attribute("Include").Value;
