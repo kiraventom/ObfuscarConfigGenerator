@@ -48,7 +48,7 @@ public class Project(string name, bool isWPF, bool isPlugin)
     public bool IsWPF { get; } = isWPF;
     public bool IsPlugin { get; } = isPlugin;
 
-    public string DllName => System.IO.Path.ChangeExtension(Name, ".dll");
+    public string DllName => Name + ".dll";
 }
 
 public class ProjectParser
@@ -93,6 +93,7 @@ public class SolutionParser
             list.Add(absProjectPath);
         }
 
+        list.Sort();
         return list;
     }
 }
