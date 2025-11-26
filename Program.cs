@@ -163,11 +163,12 @@ Optional arguments:
     }
 }
 
-public class Project(string name, bool isWPF, bool isPlugin)
+public class Project(string name, bool isWPF, bool isPlugin, bool isFramework)
 {
     public string Name { get; } = name;
     public bool IsWPF { get; } = isWPF;
     public bool IsPlugin { get; } = isPlugin;
+    public bool IsNetFramework { get; } = isFramework;
 
     public string DllName => Name + ".dll";
 }
@@ -181,7 +182,9 @@ public class ProjectParser
         var useWpf = useWpfEl is null ? false : bool.Parse(useWpfEl.Value);
         var name = Path.GetFileNameWithoutExtension(pathToCsproj);
         var isPlugin = name.Contains("Plugin");
-        return new Project(name, useWpf, isPlugin);
+        var useFrameworkEl = doc.Descendants("TargetFramework").FirstOrDefault();
+        var useFramework = useFrameworkEl is null ? false : useWpfEl.Value.Contains("net4");
+        return new Project(name, useWpf, isPlugin, useFramework);
     }
 }
 
@@ -264,6 +267,9 @@ public class ConfigBuilder
 
     public ConfigBuilder AddProject(Project project)
     {
+        if (project.IsNetFramework)
+            return this;
+
         if (project.IsWPF && _args.ObfuscateWpf == false)
             return this;
 
