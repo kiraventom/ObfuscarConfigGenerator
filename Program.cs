@@ -159,7 +159,7 @@ Optional arguments:
         var config = configBuilder.Build();
         config.Save(CONFIG_FILENAME);
 
-        Console.WriteLine($"Config saved to {CONFIG_FILENAME}");
+        Console.WriteLine($"Config saved to {CONFIG_FILENAME}, {configBuilder.ProjectCount} modules included");
     }
 }
 
@@ -203,7 +203,6 @@ public class ProjectTreeParser
         if (hashset.Contains(fileInfo.FullName))
             return;
 
-        Console.WriteLine($"Parsing {fileInfo.Name}...");
         hashset.Add(fileInfo.FullName);
 
         var doc = XDocument.Load(path);
@@ -224,6 +223,8 @@ public class ConfigBuilder
     private readonly List<Project> _projects = new();
     private readonly XDocument _doc = new();
     private readonly XElement _root;
+
+    public int ProjectCount { get; private set; }
 
     private ConfigBuilder(Args args)
     {
@@ -296,6 +297,7 @@ public class ConfigBuilder
         var el = new XElement("Module");
         el.Add(new XAttribute("file", $"$(InPath)\\{file}"));
         _root.Add(el);
+        ++ProjectCount;
         return this;
     }
 }
