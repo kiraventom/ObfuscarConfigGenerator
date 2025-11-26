@@ -23,6 +23,7 @@ public class Args
 internal class Program
 {
     private const string HELP_ARG = "--help";
+    private const string CONFIG_FILENAME = "obfuscar_config.xml";
 
     private static string ArgToAlias(string arg) => arg[1..3];
 
@@ -156,7 +157,9 @@ Optional arguments:
             configBuilder.AddProject(project);
         
         var config = configBuilder.Build();
-        config.Save("obfuscar_config.xml");
+        config.Save(CONFIG_FILENAME);
+
+        Console.WriteLine($"Config saved to {CONFIG_FILENAME}");
     }
 }
 
