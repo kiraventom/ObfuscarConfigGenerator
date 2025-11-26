@@ -31,11 +31,12 @@ internal class Program
         var projectPaths = solutionParser.GetProjectPaths(solutionPath);
 
         ProjectParser projectParser = new();
-        foreach (var projectPath in projectPaths)
-        {
-            var project = projectParser.Parse(projectPath);
+        var projects = projectPaths
+            .Select(p => projectParser.Parse(p))
+            .OrderBy(p => p.Name); 
+
+        foreach (var project in projects)
             configBuilder.AddProject(project);
-        }
         
         var config = configBuilder.Build();
         config.Save("obfuscar_config.xml");
@@ -93,7 +94,6 @@ public class SolutionParser
             list.Add(absProjectPath);
         }
 
-        list.Sort();
         return list;
     }
 }
