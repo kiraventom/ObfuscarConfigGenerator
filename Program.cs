@@ -200,6 +200,10 @@ public class ProjectTreeParser
         if (fileInfo.Extension != ".csproj")
             return;
 
+        if (hashset.Contains(fileInfo.FullName))
+            return;
+
+        Console.WriteLine($"Parsing {fileInfo.Name}...");
         hashset.Add(fileInfo.FullName);
 
         var doc = XDocument.Load(path);
