@@ -159,7 +159,7 @@ Optional arguments:
         var config = configBuilder.Build();
         config.Save(CONFIG_FILENAME);
 
-        Console.WriteLine($"Config saved to {CONFIG_FILENAME}, {configBuilder.ProjectCount} modules included");
+        Console.WriteLine($"Config saved to {CONFIG_FILENAME}, {configBuilder.ProjectCount} out of {projectPaths.Count} projects included");
     }
 }
 
