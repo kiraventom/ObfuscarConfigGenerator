@@ -207,7 +207,7 @@ public class ProjectTreeParser
         foreach (var @ref in refs)
         {
             var refPath = @ref.Attribute("Include").Value;
-            var absRefPath = Path.Combine(fileInfo.FullName, refPath);
+            var absRefPath = Path.Combine(fileInfo.DirectoryName, refPath);
             absRefPath = Path.GetFullPath(absRefPath); // normalize
             ParseProjectAndRefs(absRefPath, hashset);
         }
