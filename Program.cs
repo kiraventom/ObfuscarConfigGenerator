@@ -55,10 +55,10 @@ public class ProjectParser
 {
     public Project Parse(string pathToCsproj)
     {
-        var name = Path.GetFileNameWithoutExtension(pathToCsproj);
         var doc = XDocument.Load(pathToCsproj);
         var useWpfEl = doc.Element("UseWPF");
         var useWpf = useWpfEl is null ? false : bool.Parse(useWpfEl.Value);
+        var name = Path.GetFileNameWithoutExtension(pathToCsproj);
         var isPlugin = name.Contains("Plugin");
         return new Project(name, useWpf, isPlugin);
     }
@@ -74,6 +74,8 @@ public class SolutionParser
     {
         var list = new List<string>();
 
+        var solutionDir = Path.GetDirectoryName(solutionFileName);
+
         using var fs = File.OpenText(solutionFileName);
         while (fs.ReadLine() is {} line)
         {
@@ -81,13 +83,14 @@ public class SolutionParser
                 continue;
 
             var start = line.IndexOf(',') + 3;
-            var end = line.IndexOf(',', start) - 2;
+            var end = line.IndexOf(',', start) - 1;
             
             if (start == -1 || end == -1)
                 Console.Error.WriteLine($"Failed to parse C# project: '{line}'");
             
             var projectPath = line[start..end];
-            list.Add(projectPath);
+            var absProjectPath = Path.Combine(solutionDir, projectPath);
+            list.Add(absProjectPath);
         }
 
         return list;
