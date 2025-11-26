@@ -183,7 +183,7 @@ public class ProjectParser
         var name = Path.GetFileNameWithoutExtension(pathToCsproj);
         var isPlugin = name.Contains("Plugin");
         var useFrameworkEl = doc.Descendants("TargetFramework").FirstOrDefault();
-        var useFramework = useFrameworkEl is null ? false : useWpfEl.Value.Contains("net4");
+        var useFramework = useFrameworkEl is null ? false : useFrameworkEl.Value.Contains("net4");
         return new Project(name, useWpf, isPlugin, useFramework);
     }
 }
