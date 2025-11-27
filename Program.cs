@@ -130,7 +130,10 @@ Optional arguments:
         var projects = projectTreeParser.GetProjects(execProjectPath);
 
         foreach (var project in projects.OrderBy(p => p.Name))
+        {
+            Console.WriteLine($"Processing {project.Name}, {project.XamlFiles} xaml files...");
             configBuilder.AddProject(project);
+        }
         
         var config = configBuilder.Build();
         config.Save(CONFIG_FILENAME);
