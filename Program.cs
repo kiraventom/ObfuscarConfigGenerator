@@ -186,9 +186,9 @@ public class ProjectTreeParser
         var dict = new Dictionary<string, Project>();
         ParseProjectAndRefs(executableProjectFile, dict);
 
-        var toClean = new HashSet<string>();
-        RemoveInvalidRefs(executableProjectFile, dict, toClean, clean: false);
-        foreach (var p in toClean)
+        var toClean = new Dictionary<string, bool>();
+        RemoveInvalidRefs(executableProjectFile, toClean, clean: false);
+        foreach (var p in toClean.Where(p => p.Value).Select(p => p.Key))
             dict.Remove(p);
 
         return dict.Values;
@@ -207,7 +207,7 @@ public class ProjectTreeParser
         var project = Project.Parse(fileInfo, doc);
         dict.Add(project.Path, project);
 
-        Console.WriteLine($"Reading project {project.Name}");
+        Console.WriteLine($"Added project {project.Name}");
 
         var refs = doc.Descendants("ProjectReference");
         foreach (var @ref in refs)
@@ -219,19 +219,21 @@ public class ProjectTreeParser
         }
     }
 
-    private void RemoveInvalidRefs(string path, Dictionary<string, Project> dict, HashSet<string> toClean, bool clean)
+    private void RemoveInvalidRefs(string path, Dictionary<string, bool> toClean, bool clean)
     {
-        if (toClean.Contains(path))
+        if (toClean.ContainsKey(path))
             return;
 
         var fileInfo = new FileInfo(path);
         if (fileInfo.Extension != ".csproj")
             clean = true;
 
-        if (clean)
-            toClean.Add(path);
+        toClean.Add(path, clean);
 
-        Console.WriteLine($"Removing project {path}");
+        if (clean)
+            Console.WriteLine($"Removing project {path}");
+
+        Console.WriteLine($"Checking project {path} references");
 
         var doc = XDocument.Load(path);
 
@@ -241,7 +243,7 @@ public class ProjectTreeParser
             var refPath = @ref.Attribute("Include").Value;
             var absRefPath = Path.Combine(fileInfo.DirectoryName, refPath);
             absRefPath = Path.GetFullPath(absRefPath); // normalize
-            RemoveInvalidRefs(absRefPath, dict, toClean, clean);
+            RemoveInvalidRefs(absRefPath, toClean, clean);
         }
     }
 }
