@@ -1,4 +1,5 @@
-﻿using System.Xml.Linq;
+﻿using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 public class Args
 {
@@ -6,17 +7,13 @@ public class Args
     public string InputFolder { get; }
     public string OutputFolder { get; }
     public IReadOnlyCollection<string> IgnoredModules { get; }
-    public bool ObfuscateWpf { get; }
-    public bool ObfuscatePlugins { get; }
 
-    public Args(string execProjectFile, string inputFolder, string outputFolder, IReadOnlyCollection<string> ignoredModules, bool wpf, bool plugins)
+    public Args(string execProjectFile, string inputFolder, string outputFolder, IReadOnlyCollection<string> ignoredModules)
     {
         ExecProjectFile = execProjectFile;
         InputFolder = inputFolder;
         OutputFolder = outputFolder;
         IgnoredModules = ignoredModules;
-        ObfuscateWpf = wpf;
-        ObfuscatePlugins = plugins;
     }
 }
 
@@ -33,13 +30,9 @@ internal class Program
         const string INPUT_ARG = "--input";
         const string OUTPUT_ARG = "--output";
         const string IGNORE_ARG = "--ignore";
-        const string WPF_ARG = "--wpf";
-        const string PLUGIN_ARG = "--plugin";
 
         const string INPUT_ARG_DEFAULT = "./";
         const string OUTPUT_ARG_DEFAULT = "Obfuscated/";
-        const string WPF_ARG_DEFAULT = "false";
-        const string PLUGIN_ARG_DEFAULT = "false";
 
         if (args.Any(a => a == HELP_ARG|| a == ArgToAlias(HELP_ARG)))
         {
@@ -58,14 +51,6 @@ Optional arguments:
         E.g., ""{IGNORE_ARG} Foo,Bar,Baz"" will exclude Foo.dll, Bar.dll and Baz.dll from list of modules.
         Default value: empty string.
 
-    {WPF_ARG}: Configures if projects that have UseWPF property set to true should be obfuscated.
-        E.g., ""{WPF_ARG} true"" will enable obfuscation of WPF projects.
-        Default value: {WPF_ARG_DEFAULT}.
-
-    {PLUGIN_ARG}: Configures if projects that have ""Plugin"" in their name should be obfuscated.
-        E.g., ""{PLUGIN_ARG} true"" will enable obfuscation of modules like ""FooPlugin.dll"".
-        Default value: {PLUGIN_ARG_DEFAULT}.
-
     {HELP_ARG}, {ArgToAlias(HELP_ARG)}: displays this help.
 ");
             return null;
@@ -75,14 +60,10 @@ Optional arguments:
         var inputDir = ParseArg(args, INPUT_ARG, defaultValue: INPUT_ARG_DEFAULT);
         var outputDir = ParseArg(args, INPUT_ARG, defaultValue: Path.Combine(inputDir, OUTPUT_ARG_DEFAULT));
         var ignoreStr = ParseArg(args, IGNORE_ARG, defaultValue: string.Empty, hasAlias: false);
-        var wpfStr = ParseArg(args, WPF_ARG, defaultValue: WPF_ARG_DEFAULT, hasAlias: false);
-        var pluginStr = ParseArg(args, PLUGIN_ARG, defaultValue: PLUGIN_ARG_DEFAULT, hasAlias: false);
 
         var ignore = ignoreStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
-        var wpf = bool.Parse(wpfStr);
-        var plugin = bool.Parse(pluginStr);
 
-        return new Args(execProjectFile, inputDir, outputDir, ignore, wpf, plugin);
+        return new Args(execProjectFile, inputDir, outputDir, ignore);
     }
 
     private static string ParseArg(string[] args, string arg, string defaultValue = null, bool hasAlias = true)
@@ -146,76 +127,106 @@ Optional arguments:
             .AddVar("SkipGenerated", true);
 
         ProjectTreeParser projectTreeParser = new();
-        var projectPaths = projectTreeParser.GetProjects(execProjectPath);
+        var projects = projectTreeParser.GetProjects(execProjectPath);
 
-        ProjectParser projectParser = new();
-        var projects = projectPaths
-            .Select(p => projectParser.Parse(p))
-            .OrderBy(p => p.Name); 
-
-        foreach (var project in projects)
+        foreach (var project in projects.OrderBy(p => p.Name))
             configBuilder.AddProject(project);
         
         var config = configBuilder.Build();
         config.Save(CONFIG_FILENAME);
 
-        Console.WriteLine($"Config saved to {CONFIG_FILENAME}, {configBuilder.ProjectCount} out of {projectPaths.Count} projects included");
+        Console.WriteLine($"Config saved to {CONFIG_FILENAME}, {configBuilder.ProjectCount} included");
     }
 }
 
-public class Project(string name, bool isWPF, bool isPlugin, bool isFramework)
+public class Project
 {
-    public string Name { get; } = name;
-    public bool IsWPF { get; } = isWPF;
-    public bool IsPlugin { get; } = isPlugin;
-    public bool IsNetFramework { get; } = isFramework;
+    public string Path { get; }
+    public string Name { get; }
+    public string Namespace { get; }
+    public IReadOnlyCollection<FileInfo> XamlFiles { get; }
+    public bool IsNetFramework { get; }
 
     public string DllName => Name + ".dll";
-}
 
-public class ProjectParser
-{
-    public Project Parse(string pathToCsproj)
+    private Project(string path, string name, string @namespace, IReadOnlyCollection<FileInfo> xamlFiles, bool isNetFramework)
     {
-        var doc = XDocument.Load(pathToCsproj);
-        var useWpfEl = doc.Descendants("UseWPF").FirstOrDefault();
-        var useWpf = useWpfEl is null ? false : bool.Parse(useWpfEl.Value);
-        var name = Path.GetFileNameWithoutExtension(pathToCsproj);
-        var isPlugin = name.Contains("Plugin");
+        Path = path;
+        Name = name;
+        Namespace = @namespace;
+        XamlFiles = xamlFiles;
+        IsNetFramework = isNetFramework;
+    }
+
+    public static Project Parse(FileInfo fileInfo, XDocument doc)
+    {
+        var projectDir = fileInfo.Directory;
+
+        var assemblyName = doc.Descendants("AssemblyName").FirstOrDefault()?.Value;
+        var filename = System.IO.Path.GetFileNameWithoutExtension(fileInfo.FullName);
+
+        var rootNamespace = doc.Descendants("RootNamespace").FirstOrDefault()?.Value;
+
         var useFrameworkEl = doc.Descendants("TargetFramework").FirstOrDefault();
         var useFramework = useFrameworkEl is null ? false : useFrameworkEl.Value.Contains("net4");
-        return new Project(name, useWpf, isPlugin, useFramework);
+
+        var xamlFiles = projectDir.GetFiles("*.xaml", new EnumerationOptions() { RecurseSubdirectories = true });
+
+        return new Project(fileInfo.FullName, assemblyName ?? filename, rootNamespace ?? filename, xamlFiles, useFramework);
     }
 }
 
 public class ProjectTreeParser
 {
-    public IReadOnlyCollection<string> GetProjects(string executableProjectFile)
+    public IEnumerable<Project> GetProjects(string executableProjectFile)
     {
-        var hashset = new HashSet<string>();
-        ParseProjectAndRefs(executableProjectFile, hashset);
-        return hashset;
+        var dict = new Dictionary<string, Project>();
+        ParseProjectAndRefs(executableProjectFile, dict);
+        RemoveInvalidRefs(executableProjectFile, dict, clean: false);
+        return dict.Values;
     }
 
-    private void ParseProjectAndRefs(string path, HashSet<string> hashset)
+    private void ParseProjectAndRefs(string path, Dictionary<string, Project> dict)
     {
         var fileInfo = new FileInfo(path);
-        if (fileInfo.Extension != ".csproj")
+        if (fileInfo.Extension != "*.csproj")
             return;
 
-        if (hashset.Contains(fileInfo.FullName))
+        if (dict.ContainsKey(fileInfo.FullName))
             return;
-
-        hashset.Add(fileInfo.FullName);
 
         var doc = XDocument.Load(path);
+        var project = Project.Parse(fileInfo, doc);
+        dict.Add(project.Path, project);
+
         var refs = doc.Descendants("ProjectReference");
         foreach (var @ref in refs)
         {
             var refPath = @ref.Attribute("Include").Value;
             var absRefPath = Path.Combine(fileInfo.DirectoryName, refPath);
             absRefPath = Path.GetFullPath(absRefPath); // normalize
-            ParseProjectAndRefs(absRefPath, hashset);
+            ParseProjectAndRefs(absRefPath, dict);
+        }
+    }
+
+    private void RemoveInvalidRefs(string path, Dictionary<string, Project> dict, bool clean)
+    {
+        var fileInfo = new FileInfo(path);
+        if (fileInfo.Extension != "*.csproj")
+            clean = true;
+
+        if (clean)
+            dict.Remove(path);
+
+        var doc = XDocument.Load(path);
+
+        var refs = doc.Descendants("ProjectReference");
+        foreach (var @ref in refs)
+        {
+            var refPath = @ref.Attribute("Include").Value;
+            var absRefPath = Path.Combine(fileInfo.DirectoryName, refPath);
+            absRefPath = Path.GetFullPath(absRefPath); // normalize
+            RemoveInvalidRefs(absRefPath, dict, clean);
         }
     }
 }
@@ -265,25 +276,6 @@ public class ConfigBuilder
         return this;
     }
 
-    public ConfigBuilder AddProject(Project project)
-    {
-        if (project.IsNetFramework)
-            return this;
-
-        if (project.IsWPF && _args.ObfuscateWpf == false)
-            return this;
-
-        if (project.IsPlugin && _args.ObfuscatePlugins == false)
-            return this;
-
-        if (_args.IgnoredModules.Contains(project.Name))
-            return this;
-
-        AddModule(project.DllName);
-
-        return this;
-    }
-
     public XDocument Build()
     {
         return _doc;
@@ -298,12 +290,137 @@ public class ConfigBuilder
         return this;
     }
 
-    private ConfigBuilder AddModule(string file)
+    public ConfigBuilder AddProject(Project project)
+    {
+        if (project.IsNetFramework)
+            return this;
+
+        if (_args.IgnoredModules.Contains(project.Name))
+            return this;
+
+        AddModule(project);
+
+        return this;
+    }
+
+    private const string XAML_CS_NAMESPACE_REGEX = @"^\s*namespace\s*([\w\.]*)\s*";
+    private const string XAML_CS_CLASS_REGEX = @"^\s*.*\s*class\s*(\w*)\s*";
+    private const string XAML_NAMESPACE_REGEX = @"xmlns:(\w*)=""clr-namespace:([\w\.]*)""";
+
+    private static Regex XamlCsNamespaceRegex { get; } = new Regex(XAML_CS_NAMESPACE_REGEX);
+    private static Regex XamlCsClassRegex { get; } = new Regex(XAML_CS_CLASS_REGEX);
+    private static Regex XamlNamespaceRegex { get; } = new Regex(XAML_NAMESPACE_REGEX);
+
+    private void SkipXamlTypes(Project project, XElement moduleEl)
+    {
+        foreach (var xamlFile in project.XamlFiles)
+        {
+            var xamlCsFilePath = Path.ChangeExtension(xamlFile.FullName, ".xaml.cs");
+
+            // Handling .xaml.cs file
+            if (File.Exists(xamlCsFilePath))
+            {
+                using var fs = File.OpenText(xamlCsFilePath);
+                string @namespace = null;
+                List<string> classes = new();
+
+                while (fs.ReadLine() is {} line)
+                {
+                    var namespaceMatch = XamlCsNamespaceRegex.Match(line);
+                    if (!namespaceMatch.Success)
+                        continue;
+
+                    @namespace = namespaceMatch.Groups[1].Value;
+
+                    var classMatch = XamlCsClassRegex.Match(line);
+                    if (!classMatch.Success)
+                        continue;
+
+                    classes.Add(classMatch.Groups[1].Value);
+                }
+
+                if (@namespace != null)
+                {
+                    foreach (var @class in classes)
+                    {
+                        var skipTypeEl = BuildSkipTypeElement(@namespace, @class);
+                        moduleEl.Add(skipTypeEl);
+                    }
+                }
+            }
+
+            var namespaces = new List<XamlNamespace>();
+
+            // Collecting namespaces used in XAML
+            {
+                using var fs = File.OpenText(xamlFile.FullName);
+                while (fs.ReadLine() is {} line)
+                {
+                    var namespaceMatch = XamlNamespaceRegex.Match(line);
+                    if (!namespaceMatch.Success)
+                        continue;
+
+                    string alias = namespaceMatch.Groups[1].Value;
+                    string @namespace = namespaceMatch.Groups[2].Value;
+
+                    if (@namespace.StartsWith("System") || @namespace.StartsWith("Microsoft"))
+                        continue;
+
+                    string regexStr = $"{alias}:(\\w*)";
+                    var regex = new Regex(regexStr);
+
+                    namespaces.Add(new XamlNamespace(regex, @namespace));
+                }
+            }
+
+            // Skipping types used in XAML
+            {
+                using var fs = File.OpenText(xamlFile.FullName);
+                while (fs.ReadLine() is {} line)
+                {
+                    foreach (var ns in namespaces)
+                    {
+                        var match = ns.XamlAliasRegex.Match(line);
+                        if (!match.Success)
+                            continue;
+
+                        var @class = match.Groups[1].Value;
+                        var skipTypeEl = BuildSkipTypeElement(ns.CSharpNamespace, @class);
+                        moduleEl.Add(skipTypeEl);
+                    }
+                }
+            }
+        }
+    }
+
+    private static XElement BuildSkipTypeElement(string @namespace, string @class)
+    {
+        var skipXamlCsTypeEl = new XElement("SkipType");
+        skipXamlCsTypeEl.Add(new XAttribute("type", $"{@namespace}.{@class}"));
+        skipXamlCsTypeEl.Add(new XAttribute("skipMethods", true));
+        skipXamlCsTypeEl.Add(new XAttribute("skipProperties", true));
+        return skipXamlCsTypeEl;
+    }
+
+    private ConfigBuilder AddModule(Project project)
     {
         var el = new XElement("Module");
-        el.Add(new XAttribute("file", $"$(InPath)\\{file}"));
+        el.Add(new XAttribute("file", $"$(InPath)\\{project.DllName}"));
+        SkipXamlTypes(project, el);
         _root.Add(el);
         ++ProjectCount;
         return this;
+    }
+
+    private readonly struct XamlNamespace
+    {
+        public Regex XamlAliasRegex { get; }
+        public string CSharpNamespace { get; }
+
+        public XamlNamespace(Regex xamlAliasRegex, string cSharpNamespace)
+        {
+            XamlAliasRegex = xamlAliasRegex;
+            CSharpNamespace = cSharpNamespace;
+        }
     }
 }
