@@ -231,6 +231,8 @@ public class ProjectTreeParser
         if (clean)
             toClean.Add(path);
 
+        Console.WriteLine($"Removing project {path}");
+
         var doc = XDocument.Load(path);
 
         var refs = doc.Descendants("ProjectReference");
