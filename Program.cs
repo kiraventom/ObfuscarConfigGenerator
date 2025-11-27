@@ -328,10 +328,10 @@ public class ConfigBuilder
 
     private void SkipXamlTypes(Project project, XElement moduleEl)
     {
+        HashSet<string> typesToSkip = new();
+
         foreach (var xamlFile in project.XamlFiles)
         {
-            HashSet<string> typesToSkip = new();
-
             var xamlCsFilePath = Path.ChangeExtension(xamlFile.FullName, ".xaml.cs");
 
             // Handling .xaml.cs file
@@ -403,12 +403,12 @@ public class ConfigBuilder
                     }
                 }
             }
+        }
 
-            foreach (var typeToSkip in typesToSkip)
-            {
-                var skipTypeEl = BuildSkipTypeElement(typeToSkip);
-                moduleEl.Add(skipTypeEl);
-            }
+        foreach (var typeToSkip in typesToSkip)
+        {
+            var skipTypeEl = BuildSkipTypeElement(typeToSkip);
+            moduleEl.Add(skipTypeEl);
         }
     }
 
