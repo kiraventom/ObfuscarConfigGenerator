@@ -131,7 +131,7 @@ Optional arguments:
 
         foreach (var project in projects.OrderBy(p => p.Name))
         {
-            Console.WriteLine($"Processing {project.Name}, {project.XamlFiles} xaml files...");
+            Console.WriteLine($"Processing {project.Name}, {project.XamlFiles.Count} xaml files...");
             configBuilder.AddProject(project);
         }
         
