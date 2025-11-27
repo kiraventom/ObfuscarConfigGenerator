@@ -189,7 +189,10 @@ public class ProjectTreeParser
         var toClean = new Dictionary<string, bool>();
         RemoveInvalidRefs(executableProjectFile, toClean, clean: false);
         foreach (var p in toClean.Where(p => p.Value).Select(p => p.Key))
+        {
             dict.Remove(p);
+            Console.WriteLine($"Removed project {p}");
+        }
 
         return dict.Values;
     }
@@ -229,11 +232,6 @@ public class ProjectTreeParser
             clean = true;
 
         toClean.Add(path, clean);
-
-        if (clean)
-            Console.WriteLine($"Removing project {path}");
-
-        Console.WriteLine($"Checking project {path} references");
 
         var doc = XDocument.Load(path);
 
@@ -332,6 +330,8 @@ public class ConfigBuilder
     {
         foreach (var xamlFile in project.XamlFiles)
         {
+            HashSet<string> typesToSkip = new();
+
             var xamlCsFilePath = Path.ChangeExtension(xamlFile.FullName, ".xaml.cs");
 
             // Handling .xaml.cs file
@@ -359,10 +359,7 @@ public class ConfigBuilder
                 if (@namespace != null)
                 {
                     foreach (var @class in classes)
-                    {
-                        var skipTypeEl = BuildSkipTypeElement(@namespace, @class);
-                        moduleEl.Add(skipTypeEl);
-                    }
+                        typesToSkip.Add($"{@namespace}.{@class}");
                 }
             }
 
@@ -402,18 +399,23 @@ public class ConfigBuilder
                             continue;
 
                         var @class = match.Groups[1].Value;
-                        var skipTypeEl = BuildSkipTypeElement(ns.CSharpNamespace, @class);
-                        moduleEl.Add(skipTypeEl);
+                        typesToSkip.Add($"{ns.CSharpNamespace}.{@class}");
                     }
                 }
+            }
+
+            foreach (var typeToSkip in typesToSkip)
+            {
+                var skipTypeEl = BuildSkipTypeElement(typeToSkip);
+                moduleEl.Add(skipTypeEl);
             }
         }
     }
 
-    private static XElement BuildSkipTypeElement(string @namespace, string @class)
+    private static XElement BuildSkipTypeElement(string type)
     {
         var skipXamlCsTypeEl = new XElement("SkipType");
-        skipXamlCsTypeEl.Add(new XAttribute("type", $"{@namespace}.{@class}"));
+        skipXamlCsTypeEl.Add(new XAttribute("type", type));
         skipXamlCsTypeEl.Add(new XAttribute("skipMethods", true));
         skipXamlCsTypeEl.Add(new XAttribute("skipProperties", true));
         return skipXamlCsTypeEl;
