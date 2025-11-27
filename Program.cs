@@ -202,6 +202,8 @@ public class ProjectTreeParser
         var project = Project.Parse(fileInfo, doc);
         dict.Add(project.Path, project);
 
+        Console.WriteLine($"Reading project {project.Name}");
+
         var refs = doc.Descendants("ProjectReference");
         foreach (var @ref in refs)
         {
@@ -217,6 +219,9 @@ public class ProjectTreeParser
         var fileInfo = new FileInfo(path);
         if (fileInfo.Extension != "*.csproj")
             clean = true;
+
+        if (!dict.ContainsKey(path))
+            return;
 
         if (clean)
             dict.Remove(path);
