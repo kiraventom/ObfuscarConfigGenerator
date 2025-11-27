@@ -192,7 +192,7 @@ public class ProjectTreeParser
     private void ParseProjectAndRefs(string path, Dictionary<string, Project> dict)
     {
         var fileInfo = new FileInfo(path);
-        if (fileInfo.Extension != "*.csproj")
+        if (fileInfo.Extension != ".csproj")
             return;
 
         if (dict.ContainsKey(fileInfo.FullName))
@@ -217,7 +217,7 @@ public class ProjectTreeParser
     private void RemoveInvalidRefs(string path, Dictionary<string, Project> dict, bool clean)
     {
         var fileInfo = new FileInfo(path);
-        if (fileInfo.Extension != "*.csproj")
+        if (fileInfo.Extension != ".csproj")
             clean = true;
 
         if (!dict.ContainsKey(path))
