@@ -73,12 +73,12 @@ public class ConfigBuilder
         return this;
     }
 
-    private const string XAML_CS_NAMESPACE_REGEX = @"^\s*namespace\s*([\w\.]*)\s*";
-    private const string XAML_CS_CLASS_REGEX = @"^\s*.*\s*class\s*(\w*)\s*";
+    private const string CS_NAMESPACE_REGEX = @"^\s*namespace\s*([\w\.]*)\s*";
+    private const string CS_CLASS_REGEX = @"^\s*.*\s*class\s*(\w*)\s*";
     private const string XAML_NAMESPACE_REGEX = @"xmlns:(\w*)=""clr-namespace:([\w\.]*)""";
 
-    private static Regex XamlCsNamespaceRegex { get; } = new Regex(XAML_CS_NAMESPACE_REGEX);
-    private static Regex XamlCsClassRegex { get; } = new Regex(XAML_CS_CLASS_REGEX);
+    private static Regex CsNamespaceRegex { get; } = new Regex(CS_NAMESPACE_REGEX);
+    private static Regex CsClassRegex { get; } = new Regex(CS_CLASS_REGEX);
     private static Regex XamlNamespaceRegex { get; } = new Regex(XAML_NAMESPACE_REGEX);
 
     private void SkipXamlTypes(Project project, XElement moduleEl)
@@ -87,10 +87,11 @@ public class ConfigBuilder
 
         foreach (var xamlFile in project.XamlFiles)
         {
-            CollectXamlCsType(typesToSkip, xamlFile);
+            ScanXamlCs(typesToSkip, xamlFile);
+            ScanViewModel(typesToSkip, xamlFile);
 
             var namespaces = CollectNamespaces(xamlFile);
-            CollectTypesUsedInXaml(typesToSkip, xamlFile, namespaces);
+            ScanTypesInXaml(typesToSkip, xamlFile, namespaces);
         }
 
         var skipTypeElements = typesToSkip.Select(t => BuildSkipTypeElement(t));
@@ -98,7 +99,23 @@ public class ConfigBuilder
             moduleEl.Add(skipTypeEl);
     }
 
-    private static void CollectTypesUsedInXaml(HashSet<string> typesToSkip, FileInfo xamlFile, IEnumerable<XamlNamespace> namespaces)
+    private void ScanViewModel(HashSet<string> typesToSkip, FileInfo xamlFile)
+    {
+        var viewsDirPart = Path.DirectorySeparatorChar + "Views" + Path.DirectorySeparatorChar;
+        var viewModelsDirPart = Path.DirectorySeparatorChar + "ViewModels" + Path.DirectorySeparatorChar;
+
+        if (!xamlFile.FullName.Contains(viewsDirPart) || !xamlFile.Name.Contains("View.xaml"))
+            return;
+
+        var viewModelPath = xamlFile.FullName.Replace(viewsDirPart, viewModelsDirPart).Replace("View.xaml", "ViewModel.cs");
+
+        if (!File.Exists(viewModelPath))
+            return;
+
+        CollectCsTypes(typesToSkip, viewModelPath);
+    }
+
+    private static void ScanTypesInXaml(HashSet<string> typesToSkip, FileInfo xamlFile, IEnumerable<XamlNamespace> namespaces)
     {
         using var fs = File.OpenText(xamlFile.FullName);
         while (fs.ReadLine() is { } line)
@@ -141,26 +158,31 @@ public class ConfigBuilder
         return namespaces;
     }
 
-    private static void CollectXamlCsType(HashSet<string> typesToSkip, FileInfo xamlFile)
+    private static void ScanXamlCs(HashSet<string> typesToSkip, FileInfo xamlFile)
     {
         var xamlCsFilePath = Path.ChangeExtension(xamlFile.FullName, ".xaml.cs");
 
         if (!File.Exists(xamlCsFilePath))
             return;
 
-        using var fs = File.OpenText(xamlCsFilePath);
+        CollectCsTypes(typesToSkip, xamlCsFilePath);
+    }
+
+    private static void CollectCsTypes(HashSet<string> typesToSkip, string csFilePath)
+    {
+        using var fs = File.OpenText(csFilePath);
         string @namespace = null;
         List<string> classes = new();
 
         while (fs.ReadLine() is { } line)
         {
-            var namespaceMatch = XamlCsNamespaceRegex.Match(line);
+            var namespaceMatch = CsNamespaceRegex.Match(line);
             if (!namespaceMatch.Success)
                 continue;
 
             @namespace = namespaceMatch.Groups[1].Value;
 
-            var classMatch = XamlCsClassRegex.Match(line);
+            var classMatch = CsClassRegex.Match(line);
             if (!classMatch.Success)
                 continue;
 

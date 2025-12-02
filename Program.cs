@@ -1,27 +1,4 @@
-﻿// TODO:
-// Current problem: 
-//
-// I skip all al types mentioned in XAML, but:
-// 1. Not all classes are mentioned due to usage of Caliburn
-// 2. Due to the fact I skip all of the methods and properties in skipped types
-// interfaces get broken (interface gets obfuscated, implementation is not)
-//
-// Solution:
-//
-// 1. Detect types that can be not referenced in XAML: path.Replace("View.xaml", "ViewModel.cs")
-// 2. Skip only properties and methods that are used in XAML.
-//
-// 2.1. Detect properties to skip:
-// Simple binding: \{Binding\s*(\w*)
-// Binding with path: \{Binding\s*.*Path=(\w*)
-// x:Static: ?
-//
-// 2.2 Detect methods to skip:
-// Name/x:Name: \(?:x\:){0,1}Name=\"(\w*)\"
-// Tag: Tag=\"(\w*)\"
-// Caliburn.Action - ?
-
-internal class Program
+﻿internal class Program
 {
     private const string HELP_ARG = "--help";
     private const string CONFIG_FILENAME = "obfuscar_config.xml";
